@@ -1,0 +1,144 @@
+-- Ensure this script runs on the client side
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = game.Workspace.CurrentCamera
+
+local isActive = false
+
+-- Function to highlight a player's character and add a name tag
+local function highlightPlayer(player)
+    local character = player.Character
+    if character then
+        -- Create a highlight instance if it doesn't exist
+        if not character:FindFirstChild("Highlight") then
+            local highlight = Instance.new("Highlight")
+            highlight.Parent = character
+            highlight.FillColor = Color3.new(1, 0, 0)  -- Red color
+            highlight.OutlineColor = Color3.new(1, 1, 1)  -- White outline
+        end
+        -- Create a name tag if it doesn't exist
+        if not character:FindFirstChild("NameTag") then
+            local billboardGui = Instance.new("BillboardGui")
+            billboardGui.Name = "NameTag"
+            billboardGui.Parent = character
+            billboardGui.Adornee = character:FindFirstChild("Head")
+            billboardGui.Size = UDim2.new(0, 200, 0, 50)
+            billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+            billboardGui.AlwaysOnTop = true
+            
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Parent = billboardGui
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.Text = player.Name
+            textLabel.TextColor3 = Color3.new(1, 1, 1)  -- White text color
+            textLabel.TextScaled = true
+            textLabel.Font = Enum.Font.SourceSansBold
+        end
+    end
+end
+
+-- Function to remove highlight and name tag from a player's character
+local function removeHighlight(player)
+    local character = player.Character
+    if character then
+        if character:FindFirstChild("Highlight") then
+            character.Highlight:Destroy()
+        end
+        if character:FindFirstChild("NameTag") then
+            character.NameTag:Destroy()
+        end
+    end
+end
+
+-- Function to refresh highlights and name tags for all players
+local function refreshHighlights()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            highlightPlayer(player)
+        end
+    end
+end
+
+-- Function to get the closest player's head
+local function getClosestPlayerHead()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local head = player.Character.Head
+            local distance = (head.Position - LocalPlayer.Character.Head.Position).magnitude
+            if distance < shortestDistance then
+                closestPlayer = head
+                shortestDistance = distance
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- Function to point the camera towards the closest player's head
+local function aimAtHead()
+    local closestHead = getClosestPlayerHead()
+    if closestHead then
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, closestHead.Position)
+    end
+end
+
+-- Function to toggle the script on and off
+local function toggleScript()
+    isActive = not isActive
+    if isActive then
+        -- Add highlight and name tag to all existing players
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                highlightPlayer(player)
+            end
+        end
+        
+        -- Listen for new players joining
+        Players.PlayerAdded:Connect(function(player)
+            if player ~= LocalPlayer then
+                player.CharacterAdded:Connect(function()
+                    highlightPlayer(player)
+                end)
+            end
+        end)
+        
+        -- Listen for players leaving
+        Players.PlayerRemoving:Connect(function(player)
+            removeHighlight(player)
+        end)
+        
+        -- Refresh highlights and name tags every 5 seconds
+        spawn(function()
+            while isActive do
+                refreshHighlights()
+                wait(5)
+            end
+        end)
+        
+        -- Update the camera every frame to aim at the closest player's head
+        RunService.RenderStepped:Connect(function()
+            if isActive then
+                aimAtHead()
+            end
+        end)
+    else
+        -- Deactivate script: remove all highlights and name tags
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                removeHighlight(player)
+            end
+        end
+    end
+end
+
+-- Bind the toggleScript function to the "M" key
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.M then
+        toggleScript()
+    end
+end)
